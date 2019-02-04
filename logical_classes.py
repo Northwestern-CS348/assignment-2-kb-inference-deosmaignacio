@@ -361,7 +361,7 @@ class Bindings(object):
         bindings (listof Bindings): bindings involved in match
         bindings_dict (dictof Bindings): bindings involved in match where key is
             bound variable and value is bound value,
-            e.g. some_bindings.bindings_dict['?d'] => 'Nosliw'
+            e.g. some_bindings.bindings_dict['?d'] => 'Nosliw'a
     """
     def __init__(self):
         """Constructor for Bindings creating initially empty instance
@@ -386,7 +386,7 @@ class Bindings(object):
             random_bindings.bindings_dict[key] when the dictionary is not empty
             and the key exists, otherwise None
         """
-        return (self.bindings_dict[key] 
+        return (self.bindings_dict[key]
                 if (self.bindings_dict and key in self.bindings_dict)
                 else None)
 
@@ -424,7 +424,7 @@ class Bindings(object):
         Args:
             value_term (Term): value to maybe bind
             variable_term (Term): variable to maybe bind to
-        
+
         Returns:
             bool: if variable bound returns whether or not bound value matches value_term,
                 else True
@@ -432,7 +432,7 @@ class Bindings(object):
         bound = self.bound_to(variable_term.term)
         if bound:
             return value_term.term == bound
-            
+
         self.add_binding(variable_term.term, value_term.term)
         return True
 
@@ -465,7 +465,7 @@ class ListOfBindings(object):
         return string
 
     def __len__(self):
-        """Define behavior of len, when called on this class, 
+        """Define behavior of len, when called on this class,
             e.g. len(ListOfBindings([])) == 0
         """
         return len(self.list_of_bindings)
@@ -479,7 +479,7 @@ class ListOfBindings(object):
     def add_bindings(self, bindings, facts_rules=[]):
         """Add given bindings to list of Bindings along with associated rules or facts
 
-            Args:            
+            Args:
                 bindings (Bindings): bindings to add
                 facts_rules (listof Fact|Rule): rules or facts associated with bindings
 

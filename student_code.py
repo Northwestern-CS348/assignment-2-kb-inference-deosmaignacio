@@ -128,7 +128,33 @@ class KnowledgeBase(object):
         printv("Retracting {!r}", 0, verbose, [fact_or_rule])
         ####################################################
         # Student code goes here
-        
+        if not fact_or_rule.asserted:
+            if len(fact_or_rule.supports_facts) == 0 and len(fact_or_rule.supports_rules) == 0:
+                if len(fact_or_rule.supported_by) == 0:
+                    if isinstance(fact_or_rule, Fact):
+                        self.facts.remove(fact_or_rule)
+                    elif isinstance(fact_or_rule, Rule):
+                        self.rules.remove(fact_or_rule)
+
+            if len(fact_or_rule.supports_rules) != 0:
+                # remove fact_or_rule from "supported by" array of fact supported to be passed in recursion
+                for supportedRule in fact_or_rule.supports_rules:
+                    supportedRule.supported_by.remove(fact_or_rule)
+                    self.kb_retract(supportedRule)
+
+            if len(fact_or_rule.supports_facts) != 0:
+                for supportedFact in fact_or_rule.supports_facts:
+                    supportedFact.supported_by.remove(fact_or_rule)
+                    self.kb_retract(supportedFact)
+
+        elif isinstance(fact_or_rule, Fact) and fact_or_rule.asserted and len(fact_or_rule.supported_by) == 0:
+            self.facts.remove(fact_or_rule)
+
+        else:
+            return None
+
+
+
 
 class InferenceEngine(object):
     def fc_infer(self, fact, rule, kb):
@@ -140,9 +166,37 @@ class InferenceEngine(object):
             kb (KnowledgeBase) - A KnowledgeBase
 
         Returns:
-            Nothing            
+            Nothing
         """
         printv('Attempting to infer from {!r} and {!r} => {!r}', 1, verbose,
             [fact.statement, rule.lhs, rule.rhs])
         ####################################################
         # Student code goes here
+        if len(fact.statement.terms) > 0 and len(rule.lhs) > 0:
+            matched = match(rule.lhs[0], fact.statement)
+            if(matched):
+                inst = instantiate(rule.lhs[0], matched)
+                if fact.statement == inst and len(rule.lhs) == 1:
+                    newInst = instantiate(rule.rhs, matched)
+                    newFact = Fact(newInst)
+                    newFact.supported_by.append(fact)
+                    newFact.supported_by.append(rule)
+                    newFact.asserted = False
+                    fact.supports_facts.append(newFact)
+                    rule.supports_facts.append(newFact)
+                    kb.kb_assert(newFact)
+
+                elif fact.statement == inst and len(rule.lhs) > 1:
+                    newLhs = []
+
+                    for lhsStatement in rule.lhs[1:]:
+                        newInst = instantiate(lhsStatement, matched)
+                        newLhs.append(newInst)
+
+                    newRhs = instantiate(rule.rhs, matched)
+                    newRuleStatements = [newLhs, newRhs]
+                    newRule = Rule(newRuleStatements, supported_by=[[fact, rule]])
+                    newRule.asserted = False
+                    fact.supports_rules.append(newRule)
+                    rule.supports_rules.append(newRule)
+                    kb.kb_assert(newRule)
