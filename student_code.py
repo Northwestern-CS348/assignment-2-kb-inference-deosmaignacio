@@ -116,44 +116,72 @@ class KnowledgeBase(object):
             print("Invalid ask:", fact.statement)
             return []
 
-    def kb_retract(self, fact_or_rule):
+    def kb_retract(self, fact):
         """Retract a fact from the KB
-
         Args:
             fact (Fact) - Fact to be retracted
-
         Returns:
             None
         """
-        printv("Retracting {!r}", 0, verbose, [fact_or_rule])
+        printv("Retracting {!r}", 0, verbose, [fact])
         ####################################################
         # Student code goes here
-        if not fact_or_rule.asserted:
-            if len(fact_or_rule.supports_facts) == 0 and len(fact_or_rule.supports_rules) == 0:
-                if len(fact_or_rule.supported_by) == 0:
-                    if isinstance(fact_or_rule, Fact):
-                        self.facts.remove(fact_or_rule)
-                    elif isinstance(fact_or_rule, Rule):
-                        self.rules.remove(fact_or_rule)
+        if fact in self.facts:
+            currFact = self._get_fact(fact)
 
-            if len(fact_or_rule.supports_rules) != 0:
-                # remove fact_or_rule from "supported by" array of fact supported to be passed in recursion
-                for supportedRule in fact_or_rule.supports_rules:
-                    supportedRule.supported_by.remove(fact_or_rule)
-                    self.kb_retract(supportedRule)
+            # easy case: unsupported fact
+            if len(currFact.supported_by) == 0:
+                self.facts.remove(currFact)
 
-            if len(fact_or_rule.supports_facts) != 0:
-                for supportedFact in fact_or_rule.supports_facts:
-                    supportedFact.supported_by.remove(fact_or_rule)
+                # now check all supported facts
+                for supportedFact in currFact.supports_facts:
+                    for tuple in supportedFact.supported_by:
+                        # check if currFact is contained in the tuple
+                        if (currFact in tuple):
+                            supportedFact.supported_by.remove(tuple)
+                    # recursive step
                     self.kb_retract(supportedFact)
 
-        elif isinstance(fact_or_rule, Fact) and fact_or_rule.asserted and len(fact_or_rule.supported_by) == 0:
-            self.facts.remove(fact_or_rule)
+                # now for supported rules
+                for supportedRule in currFact.supports_rules:
+                    for tuple in supportedRule.supported_by:
+                        # remove pair if our f is in the pair (fact, rule)
+                        if (currFact in tuple):
+                            supportedRule.supported_by.remove(tuple)
+                    # recursive step
+                    self.kb_retract(supportedRule)
 
+            # otherwise, fact must be supported by other fact/rules
+            else:
+                currFact.asserted = False
+
+        # now rules - must take into account rules.asserted!
+        elif fact in self.rules and not fact.asserted:
+            currRule = self._get_rule(fact)
+
+            # similar as with facts
+            if len(currRule.supported_by) == 0:
+                self.rules.remove(currRule)
+
+                # same idea - first check supported facts
+                for supportedFact in currRule.supports_facts:
+                    for tuple in supportedFact.supported_by:
+                        # check for tuple containment
+                        if (currRule in tuple):
+                            supportedFact.supported_by.remove(tuple)
+                    # recursive step
+                    self.kb_retract(supportedFact)
+
+                # now supported rule
+                for supportedRule in currRule.supports_rules:
+                    for pair in supportedRule.supported_by:
+                        # again, check if in tuple
+                        if (currRule in pair):
+                            supportedRule.supported_by.remove(pair)
+                    # recursive step
+                    self.kb_retract(supportedRule)
         else:
             return None
-
-
 
 
 class InferenceEngine(object):
@@ -172,31 +200,34 @@ class InferenceEngine(object):
             [fact.statement, rule.lhs, rule.rhs])
         ####################################################
         # Student code goes here
-        if len(fact.statement.terms) > 0 and len(rule.lhs) > 0:
-            matched = match(rule.lhs[0], fact.statement)
-            if(matched):
-                inst = instantiate(rule.lhs[0], matched)
-                if fact.statement == inst and len(rule.lhs) == 1:
-                    newInst = instantiate(rule.rhs, matched)
-                    newFact = Fact(newInst)
-                    newFact.supported_by.append(fact)
-                    newFact.supported_by.append(rule)
-                    newFact.asserted = False
-                    fact.supports_facts.append(newFact)
-                    rule.supports_facts.append(newFact)
-                    kb.kb_assert(newFact)
+        matched = match(rule.lhs[0], fact.statement)
+        factRulePair = [fact, rule]
+        if matched:
+            if len(rule.lhs) == 1:
+                newInst = instantiate(rule.rhs, matched)
+                newFact = Fact(newInst)
 
-                elif fact.statement == inst and len(rule.lhs) > 1:
-                    newLhs = []
+                if newFact in kb.facts:
+                    newFact = kb._get_fact(newFact)
 
-                    for lhsStatement in rule.lhs[1:]:
-                        newInst = instantiate(lhsStatement, matched)
-                        newLhs.append(newInst)
+                if factRulePair not in newFact.supported_by:
+                    newFact.supported_by.append(factRulePair)
 
-                    newRhs = instantiate(rule.rhs, matched)
-                    newRuleStatements = [newLhs, newRhs]
-                    newRule = Rule(newRuleStatements, supported_by=[[fact, rule]])
-                    newRule.asserted = False
-                    fact.supports_rules.append(newRule)
-                    rule.supports_rules.append(newRule)
-                    kb.kb_assert(newRule)
+                fact.supports_facts.append(newFact)
+                rule.supports_facts.append(newFact)
+
+                if newFact not in kb.facts:
+                    kb.kb_add(newFact)
+
+            elif len(rule.lhs) > 1:
+                newLhs = []
+
+                for lhsStatement in rule.lhs[1:]:
+                    newInst = instantiate(lhsStatement, matched)
+                    newLhs.append(newInst)
+
+                newRhs = instantiate(rule.rhs, matched)
+                newRule = Rule([newLhs, newRhs], [[fact, rule]])
+                fact.supports_rules.append(newRule)
+                rule.supports_rules.append(newRule)
+                kb.kb_add(newRule)
